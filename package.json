@@ -10,7 +10,7 @@
     "build": "tsc -b && vite build && tsc -p tsconfig.server.json",
     "test": "tsx --test tests/atsAccuracy.test.ts",
     "preview": "vite preview",
-    "start": "node dist-server/index.js"
+    "start": "node dist-server/server/index.js"
   },
   "dependencies": {
     "@google/generative-ai": "^0.22.0",

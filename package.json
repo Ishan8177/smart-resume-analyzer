@@ -8,6 +8,7 @@
     "dev:client": "vite",
     "dev:server": "tsx watch server/index.ts",
     "build": "tsc -b && vite build && tsc -p tsconfig.server.json",
+    "test": "tsx --test tests/atsAccuracy.test.ts",
     "preview": "vite preview",
     "start": "node dist-server/index.js"
   },

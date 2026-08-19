@@ -14,10 +14,10 @@ import { segmentResumeText } from './services/resumeSegmenter';
 import { calculateAtsScore } from './services/atsScorer';
 import { matchJobDescription } from './services/jobMatcher';
 import { checkBackendHealth, fetchAiAnalysis } from './services/apiService';
-import { clearAllHistory, deleteSessionFromHistory, getHistory, saveSessionToHistory } from './services/historyStore';
+import { clearAllHistory, deleteSessionFromHistory, getHistory, saveSessionToHistory, updateSessionInHistory } from './services/historyStore';
 
 import { AiAnalysisResult, AnalysisSession, AtsScoreResult, BackendHealthResponse, JobMatchResult, ResumeSections } from './types';
-import { BarChart3, Target, Sparkles, FileSearch, ArrowLeft } from 'lucide-react';
+import { BarChart3, Target, Sparkles, ArrowLeft } from 'lucide-react';
 
 export function App() {
   const [health, setHealth] = useState<BackendHealthResponse | null>(null);
@@ -25,6 +25,7 @@ export function App() {
   const [loadingStep, setLoadingStep] = useState('Parsing document...');
 
   // Current session state
+  const [currentSession, setCurrentSession] = useState<AnalysisSession | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
   const [fileType, setFileType] = useState<'pdf' | 'docx'>('pdf');
   const [parsedSections, setParsedSections] = useState<ResumeSections | null>(null);
@@ -85,6 +86,7 @@ export function App() {
         aiResult: aiData,
       });
 
+      setCurrentSession(savedSession);
       setHistory(getHistory());
       setActiveTab('audit');
     } catch (error: any) {
@@ -105,13 +107,24 @@ export function App() {
       const matchRes = matchJobDescription(parsedSections.rawText, jobDescriptionText);
       setJobMatchResult(matchRes);
 
+      let updatedAi = aiResult;
       // Also refresh AI with Job Description
       try {
-        const updatedAi = await fetchAiAnalysis(parsedSections.rawText, parsedSections, jobDescriptionText);
+        updatedAi = await fetchAiAnalysis(parsedSections.rawText, parsedSections, jobDescriptionText);
         setAiResult(updatedAi);
       } catch (err) {
         console.warn('AI job match enhancement error:', err);
       } finally {
+        // Sync history session
+        if (currentSession && atsResult) {
+          const updated = {
+            ...currentSession,
+            jobMatchResult: matchRes,
+            aiResult: updatedAi,
+          };
+          setCurrentSession(updated);
+          setHistory(updateSessionInHistory(updated));
+        }
         setIsLoading(false);
       }
     }, 400);
@@ -129,6 +142,14 @@ export function App() {
         jobMatchResult?.jobDescriptionText
       );
       setAiResult(updatedAi);
+      if (currentSession) {
+        const updated = {
+          ...currentSession,
+          aiResult: updatedAi,
+        };
+        setCurrentSession(updated);
+        setHistory(updateSessionInHistory(updated));
+      }
     } catch (err) {
       console.error(err);
     } finally {
@@ -138,6 +159,7 @@ export function App() {
 
   // Restore session from history
   const handleSelectSession = (session: AnalysisSession) => {
+    setCurrentSession(session);
     setFileName(session.fileName);
     setFileType(session.fileType);
     setParsedSections(session.parsedSections);
@@ -171,7 +193,7 @@ export function App() {
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
             <button
               className="btn-secondary"
-              onClick={() => { setParsedSections(null); setAtsResult(null); }}
+              onClick={() => { setParsedSections(null); setAtsResult(null); setCurrentSession(null); }}
               style={{ fontSize: '0.85rem' }}
             >
               <ArrowLeft size={16} /> Upload Another Resume
@@ -254,7 +276,7 @@ export function App() {
         history={history}
         onSelectSession={handleSelectSession}
         onDeleteSession={(id) => setHistory(deleteSessionFromHistory(id))}
-        onClearAll={() => { clearAllHistory(); setHistory([]); }}
+        onClearAll={() => { clearAllHistory(); setHistory([]); setCurrentSession(null); }}
       />
     </div>
   );

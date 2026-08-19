@@ -16,11 +16,32 @@ export async function parsePdfFile(file: File): Promise<string> {
       const page = await pdfDocument.getPage(pageNum);
       const textContent = await page.getTextContent();
       
-      const pageStrings = textContent.items
-        .map((item: any) => (item.str ? item.str : ''))
-        .join(' ');
+      let lastY: number | null = null;
+      let pageText = '';
 
-      fullText += pageStrings + '\n\n';
+      for (const item of textContent.items as any[]) {
+        if (!item.str && !item.hasEOL) continue;
+
+        const str = item.str || '';
+        const currentY = item.transform ? item.transform[5] : null;
+        const hasEOL = Boolean(item.hasEOL);
+
+        // Detect new lines based on Y-coordinate shift or explicit EOL flag
+        if (lastY !== null && currentY !== null && Math.abs(lastY - currentY) > 4) {
+          pageText += '\n';
+        } else if (hasEOL && !pageText.endsWith('\n')) {
+          pageText += '\n';
+        } else if (pageText.length > 0 && !pageText.endsWith('\n') && !pageText.endsWith(' ') && str.trim().length > 0) {
+          pageText += ' ';
+        }
+
+        pageText += str;
+        if (currentY !== null) {
+          lastY = currentY;
+        }
+      }
+
+      fullText += pageText + '\n\n';
     }
 
     if (!fullText.trim()) {

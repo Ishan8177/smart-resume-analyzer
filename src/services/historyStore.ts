@@ -34,6 +34,23 @@ export function saveSessionToHistory(session: Omit<AnalysisSession, 'id' | 'crea
   return newSession;
 }
 
+export function updateSessionInHistory(updatedSession: AnalysisSession): AnalysisSession[] {
+  const history = getHistory();
+  const index = history.findIndex(s => s.id === updatedSession.id);
+  if (index !== -1) {
+    history[index] = updatedSession;
+  } else {
+    history.unshift(updatedSession);
+  }
+  
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(history.slice(0, 20)));
+  } catch (error) {
+    console.error('Failed to update session in LocalStorage:', error);
+  }
+  return history;
+}
+
 export function deleteSessionFromHistory(id: string): AnalysisSession[] {
   const history = getHistory().filter(s => s.id !== id);
   try {

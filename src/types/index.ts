@@ -17,6 +17,7 @@ export interface ResumeSections {
   projects: string[];
   certifications: string[];
   rawText: string;
+  detectedSections?: string[];
 }
 
 export interface AtsSubScore {
@@ -75,6 +76,12 @@ export interface RephrasedBullet {
   reason: string;
 }
 
+export interface BulletDiagnostics {
+  totalCandidateLines: number;
+  acceptedBulletsCount: number;
+  detectedSections: string[];
+}
+
 export interface AiAnalysisResult {
   summaryReview: string;
   strengths: string[];
@@ -83,6 +90,7 @@ export interface AiAnalysisResult {
   rephrasedBullets: RephrasedBullet[];
   tailoredSuggestions: string[];
   aiMatchReasoning?: string;
+  diagnostics?: BulletDiagnostics;
 }
 
 export interface AnalysisSession {

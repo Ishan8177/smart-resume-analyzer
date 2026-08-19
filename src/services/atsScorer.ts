@@ -1,9 +1,10 @@
 import { AtsScoreResult, AtsSubScore, ResumeSections } from '../types';
-import { ACTION_VERBS, HARD_SKILLS_DICTIONARY, METRIC_REGEX, WEAK_PHRASES } from '../utils/dictionary';
+import { ACTION_VERBS, HARD_SKILLS_DICTIONARY, METRIC_PATTERNS, SKILL_ALIASES, WEAK_PHRASES } from '../utils/dictionary';
 
 export function calculateAtsScore(sections: ResumeSections): AtsScoreResult {
   const text = sections.rawText;
-  const words = text.toLowerCase().split(/\s+/).filter(Boolean);
+  const lowerText = text.toLowerCase();
+  const words = lowerText.split(/\s+/).filter(Boolean);
   const wordCount = words.length;
   const readingTimeMinutes = Math.ceil(wordCount / 200);
 
@@ -14,7 +15,7 @@ export function calculateAtsScore(sections: ResumeSections): AtsScoreResult {
   // 1. Structure & Contact Completeness (15% Weight)
   let structurePoints = 0;
   const structureDetails: string[] = [];
-  
+
   if (sections.contact.email) {
     structurePoints += 25;
     structureDetails.push('Email address detected');
@@ -76,7 +77,7 @@ export function calculateAtsScore(sections: ResumeSections): AtsScoreResult {
   // Detect weak phrases
   let weakPhraseCount = 0;
   for (const phrase of WEAK_PHRASES) {
-    if (text.toLowerCase().includes(phrase)) {
+    if (lowerText.includes(phrase)) {
       weakPhraseCount++;
     }
   }
@@ -85,7 +86,7 @@ export function calculateAtsScore(sections: ResumeSections): AtsScoreResult {
     weaknesses.push(`Contains ${weakPhraseCount} passive/weak phrases (e.g., "responsible for", "helped with")`);
   }
 
-  if (actionVerbCount >= 6) {
+  if (actionVerbCount >= 5) {
     strengths.push(`Strong action verb usage (${actionVerbCount} distinct action verbs detected)`);
   } else {
     weaknesses.push('Low action verb density. Start bullet points with dynamic verbs like Spearheaded, Engineered, Scaled');
@@ -103,15 +104,16 @@ export function calculateAtsScore(sections: ResumeSections): AtsScoreResult {
   const lines = text.split(/\n+/);
   let metricLineCount = 0;
   for (const line of lines) {
-    if (METRIC_REGEX.test(line)) {
+    const hasMetric = METRIC_PATTERNS.some(pattern => pattern.test(line));
+    if (hasMetric) {
       metricLineCount++;
     }
   }
 
-  let metricScoreVal = Math.min(100, metricLineCount * 20);
-  const metricDetails: string[] = [`${metricLineCount} bullet points contain quantified metrics (%, $, numeric figures)`];
+  let metricScoreVal = Math.min(100, metricLineCount * 22);
+  const metricDetails: string[] = [`${metricLineCount} bullet points contain quantified metrics (%, $, scale, users, latency)`];
 
-  if (metricLineCount >= 4) {
+  if (metricLineCount >= 3) {
     strengths.push(`Excellent use of measurable metrics (${metricLineCount} data-driven achievements)`);
   } else {
     weaknesses.push('Lack of quantified results. Include metrics like percentages, revenue, or efficiency improvements');
@@ -125,22 +127,34 @@ export function calculateAtsScore(sections: ResumeSections): AtsScoreResult {
     status: metricScoreVal >= 70 ? 'good' : metricScoreVal >= 40 ? 'warning' : 'poor',
   };
 
-  // 4. Keyword & Skill Coverage (30% Weight)
+  // 4. Skill & Keyword Coverage (30% Weight)
   const foundSkills = new Set<string>();
-  const lowerText = text.toLowerCase();
+
+  // Direct skill search
   for (const skill of HARD_SKILLS_DICTIONARY) {
-    if (lowerText.includes(skill.toLowerCase())) {
+    const esc = skill.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(`\\b${esc}\\b`, 'i');
+    if (regex.test(text)) {
       foundSkills.add(skill);
     }
   }
 
+  // Alias lookup search
+  for (const [alias, canonical] of Object.entries(SKILL_ALIASES)) {
+    const esc = alias.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(`\\b${esc}\\b`, 'i');
+    if (regex.test(text)) {
+      foundSkills.add(canonical);
+    }
+  }
+
   const skillCount = foundSkills.size;
-  let keywordScoreVal = Math.min(100, skillCount * 8);
+  let keywordScoreVal = Math.min(100, skillCount * 9);
   const keywordDetails: string[] = [
     `Identified ${skillCount} recognized hard skills & tools (e.g., ${Array.from(foundSkills).slice(0, 5).join(', ')})`
   ];
 
-  if (skillCount >= 8) {
+  if (skillCount >= 6) {
     strengths.push(`Rich hard skill profile (${skillCount} core industry skills identified)`);
   } else {
     weaknesses.push('Limited skill keywords found. Expand your Technical Skills section');
@@ -158,13 +172,13 @@ export function calculateAtsScore(sections: ResumeSections): AtsScoreResult {
   let formattingScoreVal = 100;
   const formattingDetails: string[] = [];
 
-  if (wordCount < 250) {
-    formattingScoreVal -= 30;
-    formattingIssues.push('Resume is too brief (under 250 words)');
-    weaknesses.push('Resume word count is under ideal length for experienced roles');
-  } else if (wordCount > 1000) {
+  if (wordCount < 150) {
+    formattingScoreVal -= 35;
+    formattingIssues.push('Resume is too brief (under 150 words)');
+    weaknesses.push('Resume word count is under ideal length for professional roles');
+  } else if (wordCount > 1200) {
     formattingScoreVal -= 15;
-    formattingIssues.push('Resume is overly long (over 1000 words)');
+    formattingIssues.push('Resume is overly long (over 1200 words)');
   } else {
     strengths.push(`Ideal word count length (${wordCount} words)`);
     formattingDetails.push(`Optimal word count (${wordCount} words)`);
@@ -178,7 +192,7 @@ export function calculateAtsScore(sections: ResumeSections): AtsScoreResult {
     status: formattingScoreVal >= 80 ? 'good' : 'warning',
   };
 
-  // Calculate Weighted Overall ATS Score
+  // Weighted Overall Score
   const overallScore = Math.round(
     structureScore.score * structureScore.weight +
     impactVerbsScore.score * impactVerbsScore.weight +

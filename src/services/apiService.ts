@@ -1,5 +1,6 @@
 import { AiAnalysisResult, BackendHealthResponse, ResumeSections } from '../types';
 import { ACTION_VERBS, WEAK_PHRASES } from '../utils/dictionary';
+import { extractBulletPointsDetailed } from '../utils/bulletExtractor';
 
 export async function checkBackendHealth(): Promise<BackendHealthResponse> {
   try {
@@ -23,6 +24,8 @@ export async function fetchAiAnalysis(
   sections: ResumeSections,
   jobDescription?: string
 ): Promise<AiAnalysisResult> {
+  const detailedExtraction = extractBulletPointsDetailed(sections);
+
   try {
     const res = await fetch('/api/analyze-ai', {
       method: 'POST',
@@ -43,12 +46,19 @@ export async function fetchAiAnalysis(
 
     const json = await res.json();
     if (json.success && json.data) {
-      return json.data;
+      return {
+        ...json.data,
+        diagnostics: detailedExtraction.diagnostics,
+      };
     }
     throw new Error(json.error || 'Failed to receive AI analysis payload.');
   } catch (error: any) {
     console.warn('Backend AI Call failed, falling back to local deterministic optimization:', error.message);
-    return generateLocalDeterministicAiResult(resumeText, sections, jobDescription);
+    const localResult = generateLocalDeterministicAiResult(resumeText, sections, jobDescription);
+    return {
+      ...localResult,
+      diagnostics: detailedExtraction.diagnostics,
+    };
   }
 }
 
@@ -59,44 +69,44 @@ function generateLocalDeterministicAiResult(
   jobDescription?: string
 ): AiAnalysisResult {
   const rephrasedBullets: AiAnalysisResult['rephrasedBullets'] = [];
+  const detailedExtraction = extractBulletPointsDetailed(sections);
 
-  // Extract bullets from experience or raw lines
-  const rawBullets = sections.experience.length > 0 
-    ? sections.experience 
-    : resumeText.split(/\n+/).filter(line => line.trim().startsWith('•') || line.trim().startsWith('-') || line.length > 30);
+  for (const bullet of detailedExtraction.bullets) {
+    let improved = bullet;
+    let reason = 'Enhanced action verb framing and ATS readability.';
 
-  for (const line of rawBullets.slice(0, 5)) {
-    let cleanLine = line.replace(/^[•\-\*\s]+/, '').trim();
-    if (!cleanLine) continue;
+    const lowerBullet = bullet.toLowerCase();
+    const firstWord = bullet.split(' ')[0].toLowerCase().replace(/[^a-z]/g, '');
+    const isAlreadyStrong = ACTION_VERBS.has(firstWord);
 
-    let improved = cleanLine;
-    let reason = 'Strengthened impact and added proactive framing.';
-
-    // Replace weak phrases with strong verbs
+    let replacedWeak = false;
     for (const weak of WEAK_PHRASES) {
-      if (cleanLine.toLowerCase().includes(weak)) {
+      if (lowerBullet.includes(weak)) {
         const verb = Array.from(ACTION_VERBS)[Math.floor(Math.random() * 10)] || 'Engineered';
-        improved = cleanLine.replace(new RegExp(weak, 'gi'), `${capitalize(verb)}`);
-        reason = `Replaced weak phrase "${weak}" with high-impact action verb "${capitalize(verb)}".`;
+        improved = bullet.replace(new RegExp(weak, 'gi'), `${capitalize(verb)}`);
+        reason = `Replaced weak phrase "${weak}" with dynamic action verb "${capitalize(verb)}".`;
+        replacedWeak = true;
         break;
       }
     }
 
-    // Add metric placeholder recommendation if no number is present
-    if (!/\d+/.test(improved)) {
-      improved += ' resulting in a 25% increase in operational efficiency.';
-      reason += ' Added quantifiable achievement metrics.';
+    if (isAlreadyStrong && !replacedWeak) {
+      improved = bullet;
+      reason = 'Already strong action-oriented bullet point.';
+    } else if (!replacedWeak && !isAlreadyStrong) {
+      improved = `Spearheaded effort to ${bullet.charAt(0).toLowerCase() + bullet.slice(1)}`;
+      reason = 'Formatted bullet to begin with an active past-tense verb.';
     }
 
     rephrasedBullets.push({
-      original: cleanLine,
+      original: bullet,
       improved,
       reason,
     });
   }
 
   return {
-    summaryReview: 'Your resume demonstrates solid foundational content. Adding more quantifiable metrics and aligning bullet points with high-impact action verbs will elevate your ATS score.',
+    summaryReview: 'Your resume demonstrates solid foundational content. Aligning bullet points with strong action verbs will elevate your ATS score.',
     strengths: [
       'Clear structural layout with recognizable sections.',
       'Includes relevant technical skills and experience background.',
@@ -106,14 +116,15 @@ function generateLocalDeterministicAiResult(
       'Bullet points could benefit from stronger metric quantification (%, $, figures).',
       'Some bullet points start with passive phrases rather than dynamic verbs.'
     ],
-    missingKeywords: jobDescription ? ['System Architecture', 'CI/CD Pipelines', 'Performance Optimization'] : ['Automated Testing', 'Cross-Functional Collaboration'],
+    missingKeywords: jobDescription ? ['System Architecture', 'CI/CD Pipelines'] : ['Automated Testing'],
     rephrasedBullets,
     tailoredSuggestions: [
-      'Quantify your accomplishments in your top 2 roles with specific percentage improvements.',
-      'Place your core hard skills in a dedicated top-level section for faster ATS indexing.',
-      'Ensure every bullet point opens with a strong, past-tense action verb.'
+      'Quantify your accomplishments in your top roles with specific percentage improvements.',
+      'Place core hard skills in a dedicated section for faster ATS indexing.',
+      'Ensure every bullet point opens with a strong action verb.'
     ],
-    aiMatchReasoning: jobDescription ? 'Local matcher analyzed keyword overlaps and flagged potential skill alignment areas.' : undefined
+    aiMatchReasoning: jobDescription ? 'Local matcher analyzed keyword overlaps and flagged potential skill alignment areas.' : undefined,
+    diagnostics: detailedExtraction.diagnostics,
   };
 }
 

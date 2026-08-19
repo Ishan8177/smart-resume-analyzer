@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Sparkles, Copy, Check, ArrowRight, ShieldCheck, RefreshCw } from 'lucide-react';
+import { Sparkles, Copy, Check, ArrowRight, ShieldCheck, RefreshCw, AlertCircle, Info } from 'lucide-react';
 import { AiAnalysisResult } from '../types';
 
 interface ResumeRewriterProps {
@@ -45,6 +45,8 @@ export const ResumeRewriter: React.FC<ResumeRewriterProps> = ({
     setTimeout(() => setCopiedAll(false), 2000);
   };
 
+  const diag = aiResult.diagnostics;
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
       {/* Header Banner */}
@@ -63,10 +65,12 @@ export const ResumeRewriter: React.FC<ResumeRewriterProps> = ({
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <button className="btn-secondary" onClick={handleCopyAll}>
-              {copiedAll ? <Check size={16} color="#34d399" /> : <Copy size={16} />}
-              <span>{copiedAll ? 'Copied All!' : 'Copy All Enhanced Bullets'}</span>
-            </button>
+            {aiResult.rephrasedBullets.length > 0 && (
+              <button className="btn-secondary" onClick={handleCopyAll}>
+                {copiedAll ? <Check size={16} color="#34d399" /> : <Copy size={16} />}
+                <span>{copiedAll ? 'Copied All!' : 'Copy All Enhanced Bullets'}</span>
+              </button>
+            )}
 
             <button className="btn-primary" onClick={onRefreshAi} disabled={isLoading}>
               <RefreshCw size={16} className={isLoading ? 'spin-loader' : ''} />
@@ -75,10 +79,21 @@ export const ResumeRewriter: React.FC<ResumeRewriterProps> = ({
           </div>
         </div>
 
-        {/* Non-hallucination guarantee pill */}
-        <div style={{ marginTop: '16px', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.82rem', color: '#34d399', background: 'rgba(16, 185, 129, 0.1)', padding: '8px 14px', borderRadius: 'var(--radius-sm)', border: '1px solid rgba(16, 185, 129, 0.2)', width: 'fit-content' }}>
-          <ShieldCheck size={16} />
-          <span><strong>Fact-Preserving AI Policy:</strong> Suggestions enhance action-verb impact without fabricating experience or titles.</span>
+        {/* Non-hallucination guarantee pill & Diagnostics badge */}
+        <div style={{ marginTop: '16px', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '12px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.82rem', color: '#34d399', background: 'rgba(16, 185, 129, 0.1)', padding: '8px 14px', borderRadius: 'var(--radius-sm)', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
+            <ShieldCheck size={16} />
+            <span><strong>Fact-Preserving AI Policy:</strong> Enhances action verbs while strictly preserving facts.</span>
+          </div>
+
+          {diag && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', color: 'var(--text-muted)', background: 'rgba(255,255,255,0.04)', padding: '8px 14px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-card)' }}>
+              <Info size={14} color="var(--accent-cyan)" />
+              <span>
+                <strong>Parser Diagnostics:</strong> {diag.detectedSections.length} sections detected ({diag.detectedSections.join(', ') || 'general'}) • {diag.totalCandidateLines} candidate lines scanned • {diag.acceptedBulletsCount} bullets accepted
+              </span>
+            </div>
+          )}
         </div>
       </div>
 
@@ -87,60 +102,75 @@ export const ResumeRewriter: React.FC<ResumeRewriterProps> = ({
         Suggested Bullet Point Enhancements ({aiResult.rephrasedBullets.length})
       </h4>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
-        {aiResult.rephrasedBullets.map((item, idx) => (
-          <div key={idx} className="glass-panel" style={{ padding: '20px' }}>
-            {/* Diff Comparison Grid */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px', marginBottom: '14px' }}>
-              {/* Original Bullet */}
-              <div style={{ background: 'rgba(244, 63, 94, 0.06)', border: '1px solid rgba(244, 63, 94, 0.2)', padding: '14px', borderRadius: 'var(--radius-md)' }}>
-                <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#f87171', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                  Original Bullet Point
-                </span>
-                <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)', marginTop: '6px', lineHeight: '1.5' }}>
-                  • {item.original}
-                </p>
-              </div>
-
-              {/* Improved Bullet */}
-              <div style={{ background: 'rgba(16, 185, 129, 0.08)', border: '1px solid rgba(16, 185, 129, 0.25)', padding: '14px', borderRadius: 'var(--radius-md)', position: 'relative' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#34d399', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                    ✨ AI ATS-Optimized Bullet
+      {aiResult.rephrasedBullets.length === 0 ? (
+        <div className="glass-panel" style={{ padding: '32px 24px', textAlign: 'center', background: 'rgba(245, 158, 11, 0.08)', border: '1px solid rgba(245, 158, 11, 0.25)' }}>
+          <AlertCircle size={32} color="#fbbf24" style={{ marginBottom: '12px' }} />
+          <h4 style={{ fontSize: '1.1rem', color: '#fbbf24', fontWeight: 700, marginBottom: '6px' }}>
+            No Distinct Experience Bullets Detected
+          </h4>
+          <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)', maxWidth: '560px', margin: '0 auto 12px' }}>
+            The ATS parser evaluated <strong>{diag?.totalCandidateLines || 0} candidate lines</strong> across detected sections <em>({diag?.detectedSections.join(', ') || 'None'})</em>, but found 0 valid bullet lines matching bullet extraction criteria.
+          </p>
+          <p style={{ fontSize: '0.82rem', color: 'var(--text-dim)' }}>
+            Ensure your experience section lists individual accomplishment lines between 18 and 350 characters.
+          </p>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+          {aiResult.rephrasedBullets.map((item, idx) => (
+            <div key={idx} className="glass-panel" style={{ padding: '20px' }}>
+              {/* Diff Comparison Grid */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px', marginBottom: '14px' }}>
+                {/* Original Bullet */}
+                <div style={{ background: 'rgba(244, 63, 94, 0.06)', border: '1px solid rgba(244, 63, 94, 0.2)', padding: '14px', borderRadius: 'var(--radius-md)' }}>
+                  <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#f87171', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    Original Bullet Point
                   </span>
-                  <button
-                    onClick={() => handleCopyBullet(item.improved, idx)}
-                    style={{
-                      background: 'rgba(255,255,255,0.1)',
-                      border: 'none',
-                      color: '#fff',
-                      padding: '4px 10px',
-                      borderRadius: '6px',
-                      fontSize: '0.78rem',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '4px',
-                    }}
-                  >
-                    {copiedIdx === idx ? <Check size={14} color="#34d399" /> : <Copy size={14} />}
-                    {copiedIdx === idx ? 'Copied' : 'Copy'}
-                  </button>
+                  <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)', marginTop: '6px', lineHeight: '1.5' }}>
+                    • {item.original}
+                  </p>
                 </div>
-                <p style={{ fontSize: '0.92rem', color: 'var(--text-main)', fontWeight: 600, marginTop: '6px', lineHeight: '1.5' }}>
-                  • {item.improved}
-                </p>
+
+                {/* Improved Bullet */}
+                <div style={{ background: 'rgba(16, 185, 129, 0.08)', border: '1px solid rgba(16, 185, 129, 0.25)', padding: '14px', borderRadius: 'var(--radius-md)', position: 'relative' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#34d399', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      ✨ AI ATS-Optimized Bullet
+                    </span>
+                    <button
+                      onClick={() => handleCopyBullet(item.improved, idx)}
+                      style={{
+                        background: 'rgba(255,255,255,0.1)',
+                        border: 'none',
+                        color: '#fff',
+                        padding: '4px 10px',
+                        borderRadius: '6px',
+                        fontSize: '0.78rem',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                      }}
+                    >
+                      {copiedIdx === idx ? <Check size={14} color="#34d399" /> : <Copy size={14} />}
+                      {copiedIdx === idx ? 'Copied' : 'Copy'}
+                    </button>
+                  </div>
+                  <p style={{ fontSize: '0.92rem', color: 'var(--text-main)', fontWeight: 600, marginTop: '6px', lineHeight: '1.5' }}>
+                    • {item.improved}
+                  </p>
+                </div>
+              </div>
+
+              {/* Reason Pill */}
+              <div style={{ fontSize: '0.83rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <ArrowRight size={14} color="var(--primary)" />
+                <span><strong>Why this helps ATS:</strong> {item.reason}</span>
               </div>
             </div>
-
-            {/* Reason Pill */}
-            <div style={{ fontSize: '0.83rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <ArrowRight size={14} color="var(--primary)" />
-              <span><strong>Why this helps ATS:</strong> {item.reason}</span>
-            </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
 
       {/* Tailored Recommendations */}
       {aiResult.tailoredSuggestions && aiResult.tailoredSuggestions.length > 0 && (
